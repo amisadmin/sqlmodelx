@@ -53,4 +53,3 @@ minversion = "6.0"
 testpaths = [
     "tests",
 ]
-asyncio_mode = "auto" # pytest-asyncio
