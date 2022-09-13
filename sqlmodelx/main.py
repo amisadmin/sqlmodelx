@@ -1,12 +1,23 @@
-from typing import Dict, Tuple, Any, ForwardRef, List
+from typing import (
+    Any,
+    Dict,
+    List,
+    Set,
+    Tuple,
+    Type,
+    cast,
+)
 
 from pydantic import BaseConfig
-from pydantic.fields import ModelField
+from pydantic.fields import ModelField, Undefined
 from pydantic.main import ModelMetaclass
-from sqlalchemy import Table, inspect
-from sqlalchemy.orm import DeclarativeMeta, relationship, RelationshipProperty, declared_attr
+from pydantic.typing import ForwardRef, resolve_annotations
+from sqlalchemy import Table
+from sqlalchemy import inspect
+from sqlalchemy.orm import RelationshipProperty, declared_attr, registry, relationship
+from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlmodel import SQLModel as _SQLModel
-from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass, get_column_from_field
+from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass, get_column_from_field, RelationshipInfo
 
 def _remove_duplicate_index(table: Table):
     if table.indexes:
@@ -35,6 +46,92 @@ class _SQLModelBasesInfo:
                 self.sqlmodel_relationships.update(base.__sqlmodel_relationships__)
 
 class SQLModelMetaclass(_SQLModelMetaclass):
+
+    # From Pydantic
+    def __new__(
+        cls,
+        name: str,
+        bases: Tuple[Type[Any], ...],
+        class_dict: Dict[str, Any],
+        **kwargs: Any,
+    ) -> Any:
+        relationships: Dict[str, RelationshipInfo] = {}
+        dict_for_pydantic = {}
+        original_annotations = resolve_annotations(
+            class_dict.get("__annotations__", {}), class_dict.get("__module__", None)
+        )
+        pydantic_annotations = {}
+        relationship_annotations = {}
+        for k, v in class_dict.items():
+            if isinstance(v, RelationshipInfo):
+                relationships[k] = v
+            else:
+                dict_for_pydantic[k] = v
+        for k, v in original_annotations.items():
+            if k in relationships:
+                relationship_annotations[k] = v
+            else:
+                pydantic_annotations[k] = v
+        dict_used = {
+            **dict_for_pydantic,
+            "__weakref__": None,
+            "__sqlmodel_relationships__": relationships,
+            "__annotations__": pydantic_annotations,
+        }
+        # Duplicate logic from Pydantic to filter config kwargs because if they are
+        # passed directly including the registry Pydantic will pass them over to the
+        # superclass causing an error
+        allowed_config_kwargs: Set[str] = {
+            key
+            for key in dir(BaseConfig)
+            if not (
+                key.startswith("__") and key.endswith("__")
+            )  # skip dunder methods and attributes
+        }
+        pydantic_kwargs = kwargs.copy()
+        config_kwargs = {
+            key: pydantic_kwargs.pop(key)
+            for key in pydantic_kwargs.keys() & allowed_config_kwargs
+        }
+        new_cls = super().__new__(cls, name, bases, dict_used, **config_kwargs)
+        new_cls.__annotations__ = {
+            **relationship_annotations,
+            **pydantic_annotations,
+            **new_cls.__annotations__,
+        }
+
+        def get_config(name: str) -> Any:
+            config_class_value = getattr(new_cls.__config__, name, Undefined)
+            if config_class_value is not Undefined:
+                return config_class_value
+            kwarg_value = kwargs.get(name, Undefined)
+            if kwarg_value is not Undefined:
+                return kwarg_value
+            return Undefined
+
+        config_table = get_config("table")
+        if config_table is True:
+            # If it was passed by kwargs, ensure it's also set in config
+            new_cls.__config__.table = config_table
+            for k, v in new_cls.__fields__.items():
+                col = get_column_from_field(v)
+                setattr(new_cls, k, col)
+            # Set a config flag to tell FastAPI that this should be read with a field
+            # in orm_mode instead of preemptively converting it to a dict.
+            # This could be done by reading new_cls.__config__.table in FastAPI, but
+            # that's very specific about SQLModel, so let's have another config that
+            # other future tools based on Pydantic can use.
+            new_cls.__config__.read_with_orm_mode = True
+
+        config_registry = get_config("registry")
+        if config_registry is not Undefined:
+            config_registry = cast(registry, config_registry)
+            # If it was passed by kwargs, ensure it's also set in config
+            new_cls.__config__.registry = config_table
+            setattr(new_cls, "_sa_registry", config_registry)
+            setattr(new_cls, "metadata", config_registry.metadata)
+            setattr(new_cls, "__abstract__", True)
+        return new_cls
 
     # noinspection PyMissingConstructor
     def __init__(
