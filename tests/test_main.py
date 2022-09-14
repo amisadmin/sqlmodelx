@@ -84,6 +84,7 @@ def test_base_is_table_and_subclass_is_not_table(engine):
     # Create a pydantic model quickly through inheritance
     class NickNameUserSchema(User, table = False):
         nickname: str = Field(default = '')
+        group_: Group = Field(default = None, alias = 'group')
 
     user = User(
         username = "Deadpond",
@@ -101,4 +102,4 @@ def test_base_is_table_and_subclass_is_not_table(engine):
         user_ex = NickNameUserSchema.from_orm(user, update = {'nickname': 'nickname'})
         assert user_ex.id == user.id
         assert user_ex.nickname == 'nickname'
-        assert user_ex.group is None
+        assert user_ex.group_.id == user.group.id

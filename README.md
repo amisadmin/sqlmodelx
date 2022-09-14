@@ -2,7 +2,7 @@
   SQLModelX
 </h2>
 <p align="center">
-    <em>SQLModelX is a patch for the SQLModel library.</em><br/>
+    <em>SQLModelX is an extension of the SQLModel library.</em><br/>
 </p>
 <p align="center">
     <a href="https://github.com/amisadmin/sqlmodelx/actions/workflows/pytest.yml" target="_blank">

@@ -1,33 +1,14 @@
-from typing import (
-    Any,
-    Dict,
-    List,
-    Set,
-    Tuple,
-    Type,
-    cast,
-)
+from typing import Any, Dict, List, Set, Tuple, Type
 
 from pydantic import BaseConfig
 from pydantic.fields import ModelField, Undefined
 from pydantic.main import ModelMetaclass
 from pydantic.typing import ForwardRef, resolve_annotations
-from sqlalchemy import Table
 from sqlalchemy import inspect
-from sqlalchemy.orm import RelationshipProperty, declared_attr, registry, relationship
+from sqlalchemy.orm import RelationshipProperty, relationship
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlmodel import SQLModel as _SQLModel
 from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass, get_column_from_field, RelationshipInfo
-
-def _remove_duplicate_index(table: Table):
-    if table.indexes:
-        indexes = set()
-        names = set()
-        for index in table.indexes:
-            if index.name not in names:
-                names.add(index.name)
-                indexes.add(index)
-        table.indexes = indexes
 
 class _SQLModelBasesInfo:
 
@@ -93,29 +74,30 @@ class SQLModelMetaclass(_SQLModelMetaclass):
             key: pydantic_kwargs.pop(key)
             for key in pydantic_kwargs.keys() & allowed_config_kwargs
         }
-        new_cls = super().__new__(cls, name, bases, dict_used, **config_kwargs)
+        new_cls = ModelMetaclass.__new__(cls, name, bases, dict_used, **config_kwargs)
         new_cls.__annotations__ = {
             **relationship_annotations,
             **pydantic_annotations,
             **new_cls.__annotations__,
         }
 
-        def get_config(name: str) -> Any:
-            config_class_value = getattr(new_cls.__config__, name, Undefined)
-            if config_class_value is not Undefined:
-                return config_class_value
-            kwarg_value = kwargs.get(name, Undefined)
+        def get_config(name: str, default: Any = Undefined) -> Any:
+            kwarg_value = kwargs.get(name, default)
             if kwarg_value is not Undefined:
+                # If it was passed by kwargs, ensure it's also set in config
+                setattr(new_cls.__config__, name, kwarg_value)
                 return kwarg_value
-            return Undefined
+            return getattr(new_cls.__config__, name, default)
 
-        config_table = get_config("table")
+        config_table = get_config("table", False)
         if config_table is True:
-            # If it was passed by kwargs, ensure it's also set in config
-            new_cls.__config__.table = config_table
+            # # If it was passed by kwargs, ensure it's also set in config
+            # new_cls.__config__.table = config_table
             for k, v in new_cls.__fields__.items():
-                col = get_column_from_field(v)
-                setattr(new_cls, k, col)
+                # Ensure that the column is unique
+                if not hasattr(new_cls, k):
+                    col = get_column_from_field(v)
+                    setattr(new_cls, k, col)
             # Set a config flag to tell FastAPI that this should be read with a field
             # in orm_mode instead of preemptively converting it to a dict.
             # This could be done by reading new_cls.__config__.table in FastAPI, but
@@ -125,9 +107,9 @@ class SQLModelMetaclass(_SQLModelMetaclass):
 
         config_registry = get_config("registry")
         if config_registry is not Undefined:
-            config_registry = cast(registry, config_registry)
-            # If it was passed by kwargs, ensure it's also set in config
-            new_cls.__config__.registry = config_table
+            # config_registry = cast(registry, config_registry)
+            # # If it was passed by kwargs, ensure it's also set in config
+            # new_cls.__config__.registry = config_table
             setattr(new_cls, "_sa_registry", config_registry)
             setattr(new_cls, "metadata", config_registry.metadata)
             setattr(new_cls, "__abstract__", True)
@@ -140,15 +122,8 @@ class SQLModelMetaclass(_SQLModelMetaclass):
         # Only one of the base classes (or the current one) should be a table model
         # this allows FastAPI cloning a SQLModel for the response_model without
         cls._bases = _SQLModelBasesInfo(bases)
-        if getattr(cls.__config__, "table", False) and (not cls._bases.is_table or kw.get('table', False)):
+        if kw.get('table', False):
             dict_used = dict_.copy()
-            for field_name, field_value in cls.__fields__.items():
-                col = cls._bases.columns.get(field_name, None)  # Ensure that the column is unique
-                if col is None:
-                    col = get_column_from_field(field_value)
-                else:
-                    setattr(cls, field_name, col)
-                dict_used[field_name] = col
             for rel_name, rel_info in cls.__sqlmodel_relationships__.items():
                 if rel_info.sa_relationship:
                     # There's a SQLAlchemy relationship declared, that takes precedence
@@ -191,14 +166,8 @@ class SQLModelMetaclass(_SQLModelMetaclass):
             DeclarativeMeta.__init__(cls, classname, bases, dict_used, **kw)
             if cls._bases.is_table:
                 cls.__sqlmodel_relationships__.update(cls._bases.sqlmodel_relationships)
-                _remove_duplicate_index(cls.__table__)
         else:
             ModelMetaclass.__init__(cls, classname, bases, dict_)
 
 class SQLModel(_SQLModel, metaclass = SQLModelMetaclass):
     __table_args__ = {'extend_existing': True}
-
-    @declared_attr
-    def __tablename__(cls) -> str:
-        print(cls, cls._bases, cls._bases.tablename)
-        return cls._bases.tablename or cls.__name__.lower()
