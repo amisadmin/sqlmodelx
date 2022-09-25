@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List
 
+from sqlalchemy.orm import relationship
 from sqlmodel import Field, Relationship, Session, select
 
 from sqlmodelx import SQLModel
@@ -103,3 +104,25 @@ def test_base_is_table_and_subclass_is_not_table(engine):
         assert user_ex.id == user.id
         assert user_ex.nickname == 'nickname'
         assert user_ex.group_.id == user.group.id
+
+def test_relationship_sa_relationship(engine):
+    class MyUser(BaseUser,table = True):
+        __tablename__ = 'user'
+        group: 'Group' = Relationship(sa_relationship=relationship("Group"))
+
+        # Create the database tables
+        SQLModel.metadata.drop_all(engine)
+        SQLModel.metadata.create_all(engine)
+
+    user = MyUser(
+        username="Deadpond",
+        password="Dive Wilson",
+        group=Group(name='admin'),
+    )
+
+    with Session(engine) as session:
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        assert user.id is not None
+        assert user.group is not None

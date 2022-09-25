@@ -128,39 +128,39 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                 if rel_info.sa_relationship:
                     # There's a SQLAlchemy relationship declared, that takes precedence
                     # over anything else, use that and continue with the next attribute
-                    dict_used[rel_name] = rel_info.sa_relationship
-                    continue
-                ann = cls.__annotations__[rel_name]
-                temp_field = ModelField.infer(
-                    name = rel_name,
-                    value = rel_info,
-                    annotation = ann,
-                    class_validators = None,
-                    config = BaseConfig,
-                )
-                relationship_to = temp_field.type_
-                if isinstance(temp_field.type_, ForwardRef):
-                    relationship_to = temp_field.type_.__forward_arg__
-                rel_kwargs: Dict[str, Any] = {}
-                if rel_info.back_populates:
-                    rel_kwargs["back_populates"] = rel_info.back_populates
-                if rel_info.link_model:
-                    ins = inspect(rel_info.link_model)
-                    local_table = getattr(ins, "local_table")
-                    if local_table is None:
-                        raise RuntimeError(
-                            "Couldn't find the secondary table for "
-                            f"model {rel_info.link_model}"
-                        )
-                    rel_kwargs["secondary"] = local_table
-                rel_args: List[Any] = []
-                if rel_info.sa_relationship_args:
-                    rel_args.extend(rel_info.sa_relationship_args)
-                if rel_info.sa_relationship_kwargs:
-                    rel_kwargs.update(rel_info.sa_relationship_kwargs)
-                rel_value: RelationshipProperty = relationship(
-                    relationship_to, *rel_args, **rel_kwargs
-                )
+                    rel_value = rel_info.sa_relationship
+                else:
+                    ann = cls.__annotations__[rel_name]
+                    temp_field = ModelField.infer(
+                        name = rel_name,
+                        value = rel_info,
+                        annotation = ann,
+                        class_validators = None,
+                        config = BaseConfig,
+                    )
+                    relationship_to = temp_field.type_
+                    if isinstance(temp_field.type_, ForwardRef):
+                        relationship_to = temp_field.type_.__forward_arg__
+                    rel_kwargs: Dict[str, Any] = {}
+                    if rel_info.back_populates:
+                        rel_kwargs["back_populates"] = rel_info.back_populates
+                    if rel_info.link_model:
+                        ins = inspect(rel_info.link_model)
+                        local_table = getattr(ins, "local_table")
+                        if local_table is None:
+                            raise RuntimeError(
+                                "Couldn't find the secondary table for "
+                                f"model {rel_info.link_model}"
+                            )
+                        rel_kwargs["secondary"] = local_table
+                    rel_args: List[Any] = []
+                    if rel_info.sa_relationship_args:
+                        rel_args.extend(rel_info.sa_relationship_args)
+                    if rel_info.sa_relationship_kwargs:
+                        rel_kwargs.update(rel_info.sa_relationship_kwargs)
+                    rel_value: RelationshipProperty = relationship(
+                        relationship_to, *rel_args, **rel_kwargs
+                    )
                 dict_used[rel_name] = rel_value
                 setattr(cls, rel_name, rel_value)  # Fix #315
             DeclarativeMeta.__init__(cls, classname, bases, dict_used, **kw)
