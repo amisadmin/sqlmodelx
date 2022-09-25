@@ -8,10 +8,12 @@ from sqlalchemy import inspect
 from sqlalchemy.orm import RelationshipProperty, relationship
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 from sqlmodel import SQLModel as _SQLModel
-from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass, get_column_from_field, RelationshipInfo
+from sqlmodel.main import RelationshipInfo
+from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass
+from sqlmodel.main import get_column_from_field
+
 
 class _SQLModelBasesInfo:
-
     def __init__(self, bases):
         self.is_table = False
         self.tablename = None
@@ -26,6 +28,7 @@ class _SQLModelBasesInfo:
                 self.columns.update(base.__table__.columns._index)
                 self.sqlmodel_relationships.update(base.__sqlmodel_relationships__)
 
+
 class SQLModelMetaclass(_SQLModelMetaclass):
 
     # From Pydantic
@@ -38,9 +41,7 @@ class SQLModelMetaclass(_SQLModelMetaclass):
     ) -> Any:
         relationships: Dict[str, RelationshipInfo] = {}
         dict_for_pydantic = {}
-        original_annotations = resolve_annotations(
-            class_dict.get("__annotations__", {}), class_dict.get("__module__", None)
-        )
+        original_annotations = resolve_annotations(class_dict.get("__annotations__", {}), class_dict.get("__module__", None))
         pydantic_annotations = {}
         relationship_annotations = {}
         for k, v in class_dict.items():
@@ -65,15 +66,10 @@ class SQLModelMetaclass(_SQLModelMetaclass):
         allowed_config_kwargs: Set[str] = {
             key
             for key in dir(BaseConfig)
-            if not (
-                key.startswith("__") and key.endswith("__")
-            )  # skip dunder methods and attributes
+            if not (key.startswith("__") and key.endswith("__"))  # skip dunder methods and attributes
         }
         pydantic_kwargs = kwargs.copy()
-        config_kwargs = {
-            key: pydantic_kwargs.pop(key)
-            for key in pydantic_kwargs.keys() & allowed_config_kwargs
-        }
+        config_kwargs = {key: pydantic_kwargs.pop(key) for key in pydantic_kwargs.keys() & allowed_config_kwargs}
         new_cls = ModelMetaclass.__new__(cls, name, bases, dict_used, **config_kwargs)
         new_cls.__annotations__ = {
             **relationship_annotations,
@@ -116,13 +112,11 @@ class SQLModelMetaclass(_SQLModelMetaclass):
         return new_cls
 
     # noinspection PyMissingConstructor
-    def __init__(
-        cls, classname: str, bases: Tuple[type, ...], dict_: Dict[str, Any], **kw: Any
-    ) -> None:
+    def __init__(cls, classname: str, bases: Tuple[type, ...], dict_: Dict[str, Any], **kw: Any) -> None:
         # Only one of the base classes (or the current one) should be a table model
         # this allows FastAPI cloning a SQLModel for the response_model without
         cls._bases = _SQLModelBasesInfo(bases)
-        if kw.get('table', False):
+        if kw.get("table", False):
             dict_used = dict_.copy()
             for rel_name, rel_info in cls.__sqlmodel_relationships__.items():
                 if rel_info.sa_relationship:
@@ -132,11 +126,11 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                 else:
                     ann = cls.__annotations__[rel_name]
                     temp_field = ModelField.infer(
-                        name = rel_name,
-                        value = rel_info,
-                        annotation = ann,
-                        class_validators = None,
-                        config = BaseConfig,
+                        name=rel_name,
+                        value=rel_info,
+                        annotation=ann,
+                        class_validators=None,
+                        config=BaseConfig,
                     )
                     relationship_to = temp_field.type_
                     if isinstance(temp_field.type_, ForwardRef):
@@ -146,21 +140,16 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                         rel_kwargs["back_populates"] = rel_info.back_populates
                     if rel_info.link_model:
                         ins = inspect(rel_info.link_model)
-                        local_table = getattr(ins, "local_table")
+                        local_table = getattr(ins, "local_table", None)
                         if local_table is None:
-                            raise RuntimeError(
-                                "Couldn't find the secondary table for "
-                                f"model {rel_info.link_model}"
-                            )
+                            raise RuntimeError("Couldn't find the secondary table for " f"model {rel_info.link_model}")
                         rel_kwargs["secondary"] = local_table
                     rel_args: List[Any] = []
                     if rel_info.sa_relationship_args:
                         rel_args.extend(rel_info.sa_relationship_args)
                     if rel_info.sa_relationship_kwargs:
                         rel_kwargs.update(rel_info.sa_relationship_kwargs)
-                    rel_value: RelationshipProperty = relationship(
-                        relationship_to, *rel_args, **rel_kwargs
-                    )
+                    rel_value: RelationshipProperty = relationship(relationship_to, *rel_args, **rel_kwargs)
                 dict_used[rel_name] = rel_value
                 setattr(cls, rel_name, rel_value)  # Fix #315
             DeclarativeMeta.__init__(cls, classname, bases, dict_used, **kw)
@@ -169,5 +158,6 @@ class SQLModelMetaclass(_SQLModelMetaclass):
         else:
             ModelMetaclass.__init__(cls, classname, bases, dict_)
 
-class SQLModel(_SQLModel, metaclass = SQLModelMetaclass):
-    __table_args__ = {'extend_existing': True}
+
+class SQLModel(_SQLModel, metaclass=SQLModelMetaclass):
+    __table_args__ = {"extend_existing": True}

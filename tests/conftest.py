@@ -4,6 +4,7 @@ from sqlalchemy.engine import Engine
 
 from sqlmodelx import SQLModel
 
+
 @pytest.fixture()
 def engine() -> Engine:
     engine_ = create_engine("sqlite://")

@@ -7,27 +7,29 @@ from sqlmodel import Field, Relationship, Session, select
 from sqlmodelx import SQLModel
 from sqlmodelx.main import SQLModelMetaclass
 
+
 class PkMixin(SQLModel):
-    id: int = Field(default = None, primary_key = True, nullable = False)
+    id: int = Field(default=None, primary_key=True, nullable=False)
+
 
 class BaseUser(PkMixin):
-    username: str = Field(default = '', nullable = False)
-    password: str = Field(default = '', nullable = False)
-    create_time: datetime = Field(default_factory = datetime.now, nullable = False)
-    group_id: int = Field(default = None, nullable = True, foreign_key = 'group.id')
+    username: str = Field(default="", nullable=False)
+    password: str = Field(default="", nullable=False)
+    create_time: datetime = Field(default_factory=datetime.now, nullable=False)
+    group_id: int = Field(default=None, nullable=True, foreign_key="group.id")
 
-class User(BaseUser, table = True):
-    __tablename__ = 'user'
-    group: 'Group' = Relationship(back_populates = 'users')
 
-class Group(SQLModel, table = True):
-    id: int = Field(default = None, primary_key = True, nullable = False)
-    name: str = Field(default = '', nullable = False)
-    create_time: datetime = Field(default_factory = datetime.now, nullable = False)
-    users: List[User] = Relationship(
-        back_populates = 'group',
-        sa_relationship_kwargs = {"enable_typechecks": False}
-    )
+class User(BaseUser, table=True):
+    __tablename__ = "user"
+    group: "Group" = Relationship(back_populates="users")
+
+
+class Group(SQLModel, table=True):
+    id: int = Field(default=None, primary_key=True, nullable=False)
+    name: str = Field(default="", nullable=False)
+    create_time: datetime = Field(default_factory=datetime.now, nullable=False)
+    users: List[User] = Relationship(back_populates="group", sa_relationship_kwargs={"enable_typechecks": False})
+
 
 def test_class_and_metaclass(engine):
     """Test class and metaclass"""
@@ -39,27 +41,28 @@ def test_class_and_metaclass(engine):
     assert issubclass(User, SQLModel)
     assert issubclass(User, _SQLModel)
 
+
 def test_base_is_table_and_subclass_is_table(engine):
     """Test base class and subclass are both ORM database tables"""
 
     # Extend the user ORM model to add a field
-    class NickNameUser(User, table = True):
-        nickname: str = Field(default = '')
+    class NickNameUser(User, table=True):
+        nickname: str = Field(default="")
 
     # Extend the user ORM model to add a field
-    class AvatarUser(NickNameUser, table = True):
-        avatar: str = Field(default = '')
+    class AvatarUser(NickNameUser, table=True):
+        avatar: str = Field(default="")
 
     # Create the database tables
     SQLModel.metadata.drop_all(engine)
     SQLModel.metadata.create_all(engine)
 
     avatar_user = AvatarUser(
-        username = "Deadpond",
-        password = "Dive Wilson",
-        nickname = 'nickname',
-        avatar = 'avatar',
-        group = Group(name = 'admin'),
+        username="Deadpond",
+        password="Dive Wilson",
+        nickname="nickname",
+        avatar="avatar",
+        group=Group(name="admin"),
     )
 
     with Session(engine) as session:
@@ -79,19 +82,16 @@ def test_base_is_table_and_subclass_is_table(engine):
         assert user.username == avatar_user.username
         assert user.group.id == avatar_user.group.id
 
+
 def test_base_is_table_and_subclass_is_not_table(engine):
     """Test base class is an ORM database table, the subclass is not"""
 
     # Create a pydantic model quickly through inheritance
-    class NickNameUserSchema(User, table = False):
-        nickname: str = Field(default = '')
-        group_: Group = Field(default = None, alias = 'group')
+    class NickNameUserSchema(User, table=False):
+        nickname: str = Field(default="")
+        group_: Group = Field(default=None, alias="group")
 
-    user = User(
-        username = "Deadpond",
-        password = "Dive Wilson",
-        group = Group(name = 'admin')
-    )
+    user = User(username="Deadpond", password="Dive Wilson", group=Group(name="admin"))
 
     with Session(engine) as session:
         session.add(user)
@@ -100,15 +100,16 @@ def test_base_is_table_and_subclass_is_not_table(engine):
         assert user.id is not None
         assert user.group.id is not None
 
-        user_ex = NickNameUserSchema.from_orm(user, update = {'nickname': 'nickname'})
+        user_ex = NickNameUserSchema.from_orm(user, update={"nickname": "nickname"})
         assert user_ex.id == user.id
-        assert user_ex.nickname == 'nickname'
+        assert user_ex.nickname == "nickname"
         assert user_ex.group_.id == user.group.id
 
+
 def test_relationship_sa_relationship(engine):
-    class MyUser(BaseUser,table = True):
-        __tablename__ = 'user'
-        group: 'Group' = Relationship(sa_relationship=relationship("Group"))
+    class MyUser(BaseUser, table=True):
+        __tablename__ = "user"
+        group: "Group" = Relationship(sa_relationship=relationship("Group"))
 
         # Create the database tables
         SQLModel.metadata.drop_all(engine)
@@ -117,7 +118,7 @@ def test_relationship_sa_relationship(engine):
     user = MyUser(
         username="Deadpond",
         password="Dive Wilson",
-        group=Group(name='admin'),
+        group=Group(name="admin"),
     )
 
     with Session(engine) as session:
