@@ -47,9 +47,25 @@ build-backend = "pdm.pep517.api"
 [tool]
 [tool.pdm]
 [tool.pdm.dev-dependencies]
+dev = [
+    "pre-commit>=2.20.0",
+]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = [
     "tests",
 ]
+
+[tool.isort]
+profile = "black"
+atomic = true
+filter_files = true
+
+[tool.black]
+line-length = 130
+include = '\.pyi?$'
+
+[tool.pdm.scripts]
+lint = "pre-commit run --all-files"
+test= "pytest"
