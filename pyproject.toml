@@ -1,6 +1,6 @@
 [project]
 name = "sqlmodelx"
-version = "0.0.2"
+version = "0.0.3"
 description = "SQLModelX is an extension of the SQLModel library."
 authors = [
     { name = "atomi", email = "1456417373@qq.com" },
