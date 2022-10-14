@@ -1,16 +1,39 @@
+from functools import cached_property
 from typing import Any, Dict, List, Set, Tuple, Type
 
 from pydantic import BaseConfig
 from pydantic.fields import ModelField, Undefined
 from pydantic.main import ModelMetaclass
 from pydantic.typing import ForwardRef, resolve_annotations
-from sqlalchemy import inspect
-from sqlalchemy.orm import RelationshipProperty, relationship
+from sqlalchemy import Column, inspect
+from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
+from sqlalchemy.orm import (
+    ColumnProperty,
+    RelationshipProperty,
+    declared_attr,
+    relationship,
+)
 from sqlalchemy.orm.decl_api import DeclarativeMeta
+from sqlalchemy.util import classproperty
 from sqlmodel import SQLModel as _SQLModel
 from sqlmodel.main import RelationshipInfo
 from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass
-from sqlmodel.main import get_column_from_field
+from sqlmodel.main import get_column_from_field as _get_column_from_field
+
+SaColumnTypes = (
+    Column,
+    ColumnProperty,
+    hybrid_property,
+)
+
+
+def get_column_from_field(field: ModelField) -> Any:
+    sa_column = getattr(field.field_info, "sa_column", Undefined)
+    if isinstance(sa_column, SaColumnTypes):  # support ColumnProperty
+        return sa_column
+    if field.default and isinstance(field.default, SaColumnTypes):
+        return field.default
+    return _get_column_from_field(field)
 
 
 class _SQLModelBasesInfo:
@@ -161,3 +184,6 @@ class SQLModelMetaclass(_SQLModelMetaclass):
 
 class SQLModel(_SQLModel, metaclass=SQLModelMetaclass):
     __table_args__ = {"extend_existing": True}
+
+    class Config:
+        keep_untouched = (classproperty, cached_property, declared_attr, hybrid_method, *SaColumnTypes)

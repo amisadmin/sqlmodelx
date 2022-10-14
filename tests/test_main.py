@@ -1,7 +1,15 @@
 from datetime import datetime
 from typing import List
 
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, ForeignKey, Integer, String, func
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import (
+    InstrumentedAttribute,
+    column_property,
+    declared_attr,
+    deferred,
+    relationship,
+)
 from sqlmodel import Field, Relationship, Session, select
 
 from sqlmodelx import SQLModel
@@ -111,9 +119,9 @@ def test_relationship_sa_relationship(engine):
         __tablename__ = "user"
         group: "Group" = Relationship(sa_relationship=relationship("Group"))
 
-        # Create the database tables
-        SQLModel.metadata.drop_all(engine)
-        SQLModel.metadata.create_all(engine)
+    # Create the database tables
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
 
     user = MyUser(
         username="Deadpond",
@@ -127,3 +135,65 @@ def test_relationship_sa_relationship(engine):
         session.refresh(user)
         assert user.id is not None
         assert user.group is not None
+
+
+def test_SaColumnTypes(engine):
+    class MyUser(PkMixin, table=True):
+        __tablename__ = "user"
+
+        id = Column(Integer, primary_key=True)
+
+        firstname: str = Field(default="")
+        lastname: str = Field(default="")
+
+        info: str = deferred(Column(String(100)))  # lazy load column
+
+        group_count: int = Field(sa_column=column_property(select(func.count(Group.id))))  # type: ignore
+        """The type of the field is int, but the type of the column is sqlalchemy.orm.ColumnProperty"""
+
+        group_count2 = column_property(select(func.count(Group.id)))
+
+        @hybrid_property
+        def fullname(self):
+            return self.firstname + " " + self.lastname
+
+        @declared_attr
+        def group_id(self):
+            return Column(ForeignKey("group.id"))
+
+    # Create the database tables
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
+    # test declared_attr
+    assert isinstance(MyUser.group_id, InstrumentedAttribute)
+
+    user = MyUser(
+        firstname="Deadpond",
+        lastname="Dive Wilson",
+        info="info",
+        group_count=1,  # readonly
+    )
+
+    with Session(engine) as session:
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        # test attribute
+        assert user.id is not None
+        assert user.fullname == "Deadpond Dive Wilson"
+        assert user.group_count == 0
+        assert user.group_count2 == 0
+        print("user.child_count", user.group_count)
+        # test dict
+        dct = user.dict()
+        assert dct["id"] is not None
+        assert "fullname" not in dct
+        assert dct["group_count"] == 0
+
+        # test deferred column
+        assert "info" not in dct
+        assert user.info == "info"  # load info column
+        dct = user.dict()
+        assert "info" in dct
+        assert dct["info"] == "info"
