@@ -1,4 +1,3 @@
-from functools import cached_property
 from typing import Any, Dict, List, Set, Tuple, Type
 
 from pydantic import BaseConfig
@@ -19,6 +18,11 @@ from sqlmodel import SQLModel as _SQLModel
 from sqlmodel.main import RelationshipInfo
 from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass
 from sqlmodel.main import get_column_from_field as _get_column_from_field
+
+try:
+    from functools import cached_property
+except ImportError:
+    from sqlalchemy.util.langhelpers import memoized_property as cached_property
 
 SaColumnTypes = (
     Column,
