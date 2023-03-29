@@ -140,3 +140,4 @@ cython_debug/
 
 /.idea/
 /.pdm.toml
+/tests/amisadmin.db

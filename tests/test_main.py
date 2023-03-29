@@ -13,6 +13,8 @@ from sqlalchemy.orm import (
 from sqlmodel import Field, Relationship, Session, select
 
 from sqlmodelx import SQLModel
+
+# from sqlmodel import SQLModel
 from sqlmodelx.main import SQLModelMetaclass
 
 
@@ -184,7 +186,7 @@ def test_SaColumnTypes(engine):
         assert user.fullname == "Deadpond Dive Wilson"
         assert user.group_count == 0
         assert user.group_count2 == 0
-        print("user.child_count", user.group_count)
+
         # test dict
         dct = user.dict()
         assert dct["id"] is not None
