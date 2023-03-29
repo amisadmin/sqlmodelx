@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Set, Tuple, Type
+from typing import Any, Callable, Dict, List, Set, Tuple, Type
 
 from pydantic import BaseConfig
 from pydantic.fields import ModelField, Undefined
@@ -13,7 +13,7 @@ from sqlalchemy.orm import (
     relationship,
 )
 from sqlalchemy.orm.decl_api import DeclarativeMeta
-from sqlalchemy.util import classproperty
+from sqlalchemy.util import classproperty, memoized_property
 from sqlmodel import SQLModel as _SQLModel
 from sqlmodel.main import RelationshipInfo
 from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass
@@ -22,13 +22,28 @@ from sqlmodel.main import get_column_from_field as _get_column_from_field
 try:
     from functools import cached_property
 except ImportError:
-    from sqlalchemy.util.langhelpers import memoized_property as cached_property
+    cached_property = memoized_property
 
 SaColumnTypes = (
     Column,
     ColumnProperty,
     hybrid_property,
+    declared_attr,
 )
+
+
+def with_field(field: ModelField, **kwargs: Any) -> Callable:
+    """为一个属性字段添加pydantic字段信息,todo"""
+
+    # 属性装饰器
+    def decorator(prop):
+        # 为类添加属性
+        setattr(prop, field.name, field)
+        # 为类添加pydantic字段信息
+        prop.__fields__[field.name] = field.copy(update=kwargs)
+        return prop
+
+    return decorator
 
 
 def get_column_from_field(field: ModelField) -> Any:
@@ -57,7 +72,6 @@ class _SQLModelBasesInfo:
 
 
 class SQLModelMetaclass(_SQLModelMetaclass):
-
     # From Pydantic
     def __new__(
         cls,
@@ -132,7 +146,6 @@ class SQLModelMetaclass(_SQLModelMetaclass):
         if config_registry is not Undefined:
             # config_registry = cast(registry, config_registry)
             # # If it was passed by kwargs, ensure it's also set in config
-            # new_cls.__config__.registry = config_table
             setattr(new_cls, "_sa_registry", config_registry)
             setattr(new_cls, "metadata", config_registry.metadata)
             setattr(new_cls, "__abstract__", True)
@@ -190,4 +203,4 @@ class SQLModel(_SQLModel, metaclass=SQLModelMetaclass):
     __table_args__ = {"extend_existing": True}
 
     class Config:
-        keep_untouched = (classproperty, cached_property, declared_attr, hybrid_method, *SaColumnTypes)
+        keep_untouched = (classproperty, cached_property, memoized_property, hybrid_method, *SaColumnTypes)
