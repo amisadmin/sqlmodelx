@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Set, Tuple, Type
 
 from pydantic import BaseConfig
-from pydantic.fields import ModelField, Undefined
+from pydantic.fields import SHAPE_SINGLETON, ModelField, Undefined
 from pydantic.main import ModelMetaclass
 from pydantic.typing import ForwardRef, resolve_annotations
 from sqlalchemy import Column, inspect
@@ -20,6 +20,9 @@ from sqlmodel.main import RelationshipInfo
 from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass
 from sqlmodel.main import get_column_from_field as _get_column_from_field
 from typing_extensions import get_origin
+
+from sqlmodelx.enums import Choices
+from sqlmodelx.sqltypes import ChoiceType
 
 try:
     from functools import cached_property
@@ -40,6 +43,10 @@ def get_column_from_field(field: ModelField) -> Any:
         return sa_column
     if field.default and isinstance(field.default, SaColumnTypes):
         return field.default
+    if isinstance(field.type_, type) and field.shape == SHAPE_SINGLETON:
+        # Support for choices enums
+        if issubclass(field.type_, Choices):
+            setattr(field.field_info, "sa_type", ChoiceType(field.type_))
     return _get_column_from_field(field)
 
 
