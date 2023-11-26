@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Set, Tuple, Type
+from typing import Any, Dict, List, Set, Tuple, Type
 
 from pydantic import BaseConfig
 from pydantic.fields import ModelField, Undefined
@@ -8,6 +8,7 @@ from sqlalchemy import Column, inspect
 from sqlalchemy.ext.hybrid import hybrid_method, hybrid_property
 from sqlalchemy.orm import (
     ColumnProperty,
+    Mapped,
     RelationshipProperty,
     declared_attr,
     relationship,
@@ -18,6 +19,7 @@ from sqlmodel import SQLModel as _SQLModel
 from sqlmodel.main import RelationshipInfo
 from sqlmodel.main import SQLModelMetaclass as _SQLModelMetaclass
 from sqlmodel.main import get_column_from_field as _get_column_from_field
+from typing_extensions import get_origin
 
 try:
     from functools import cached_property
@@ -30,20 +32,6 @@ SaColumnTypes = (
     hybrid_property,
     declared_attr,
 )
-
-
-def with_field(field: ModelField, **kwargs: Any) -> Callable:
-    """为一个属性字段添加pydantic字段信息,todo"""
-
-    # 属性装饰器
-    def decorator(prop):
-        # 为类添加属性
-        setattr(prop, field.name, field)
-        # 为类添加pydantic字段信息
-        prop.__fields__[field.name] = field.copy(update=kwargs)
-        return prop
-
-    return decorator
 
 
 def get_column_from_field(field: ModelField) -> Any:
@@ -164,7 +152,16 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                     # over anything else, use that and continue with the next attribute
                     rel_value = rel_info.sa_relationship
                 else:
-                    ann = cls.__annotations__[rel_name]
+                    raw_ann = cls.__annotations__[rel_name]
+                    origin = get_origin(raw_ann)
+                    if origin is Mapped:
+                        ann = raw_ann.__args__[0]
+                    else:
+                        ann = raw_ann
+                        # Plain forward references, for models not yet defined, are not
+                        # handled well by SQLAlchemy without Mapped, so, wrap the
+                        # annotations in Mapped here
+                        cls.__annotations__[rel_name] = Mapped[ann]  # type: ignore[valid-type]
                     temp_field = ModelField.infer(
                         name=rel_name,
                         value=rel_info,

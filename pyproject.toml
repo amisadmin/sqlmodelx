@@ -1,12 +1,12 @@
 [project]
 name = "sqlmodelx"
-version = "0.0.5"
+version = "0.0.6"
 description = "SQLModelX is an extension of the SQLModel library."
 authors = [
     { name = "atomi", email = "1456417373@qq.com" },
 ]
 dependencies = [
-    "sqlmodel>=0.0.7",
+    "sqlmodel>=0.0.12",
 ]
 requires-python = ">=3.7"
 readme = "README.md"
