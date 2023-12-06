@@ -152,51 +152,49 @@ class SQLModelMetaclass(_SQLModelMetaclass):
         # this allows FastAPI cloning a SQLModel for the response_model without
         cls._bases = _SQLModelBasesInfo(bases)
         if kw.get("table", False):
-            dict_used = dict_.copy()
             for rel_name, rel_info in cls.__sqlmodel_relationships__.items():
                 if rel_info.sa_relationship:
                     # There's a SQLAlchemy relationship declared, that takes precedence
                     # over anything else, use that and continue with the next attribute
-                    rel_value = rel_info.sa_relationship
+                    setattr(cls, rel_name, rel_info.sa_relationship)
+                    continue
+                raw_ann = cls.__annotations__[rel_name]
+                origin = get_origin(raw_ann)
+                if origin is Mapped:
+                    ann = raw_ann.__args__[0]
                 else:
-                    raw_ann = cls.__annotations__[rel_name]
-                    origin = get_origin(raw_ann)
-                    if origin is Mapped:
-                        ann = raw_ann.__args__[0]
-                    else:
-                        ann = raw_ann
-                        # Plain forward references, for models not yet defined, are not
-                        # handled well by SQLAlchemy without Mapped, so, wrap the
-                        # annotations in Mapped here
-                        cls.__annotations__[rel_name] = Mapped[ann]  # type: ignore[valid-type]
-                    temp_field = ModelField.infer(
-                        name=rel_name,
-                        value=rel_info,
-                        annotation=ann,
-                        class_validators=None,
-                        config=BaseConfig,
-                    )
-                    relationship_to = temp_field.type_
-                    if isinstance(temp_field.type_, ForwardRef):
-                        relationship_to = temp_field.type_.__forward_arg__
-                    rel_kwargs: Dict[str, Any] = {}
-                    if rel_info.back_populates:
-                        rel_kwargs["back_populates"] = rel_info.back_populates
-                    if rel_info.link_model:
-                        ins = inspect(rel_info.link_model)
-                        local_table = getattr(ins, "local_table", None)
-                        if local_table is None:
-                            raise RuntimeError("Couldn't find the secondary table for " f"model {rel_info.link_model}")
-                        rel_kwargs["secondary"] = local_table
-                    rel_args: List[Any] = []
-                    if rel_info.sa_relationship_args:
-                        rel_args.extend(rel_info.sa_relationship_args)
-                    if rel_info.sa_relationship_kwargs:
-                        rel_kwargs.update(rel_info.sa_relationship_kwargs)
-                    rel_value: RelationshipProperty = relationship(relationship_to, *rel_args, **rel_kwargs)
-                dict_used[rel_name] = rel_value
-                setattr(cls, rel_name, rel_value)  # Fix #315
-            DeclarativeMeta.__init__(cls, classname, bases, dict_used, **kw)
+                    ann = raw_ann
+                    # Plain forward references, for models not yet defined, are not
+                    # handled well by SQLAlchemy without Mapped, so, wrap the
+                    # annotations in Mapped here
+                    cls.__annotations__[rel_name] = Mapped[ann]  # type: ignore[valid-type]
+                temp_field = ModelField.infer(
+                    name=rel_name,
+                    value=rel_info,
+                    annotation=ann,
+                    class_validators=None,
+                    config=BaseConfig,
+                )
+                relationship_to = temp_field.type_
+                if isinstance(temp_field.type_, ForwardRef):
+                    relationship_to = temp_field.type_.__forward_arg__
+                rel_kwargs: Dict[str, Any] = {}
+                if rel_info.back_populates:
+                    rel_kwargs["back_populates"] = rel_info.back_populates
+                if rel_info.link_model:
+                    ins = inspect(rel_info.link_model)
+                    local_table = getattr(ins, "local_table", None)
+                    if local_table is None:
+                        raise RuntimeError("Couldn't find the secondary table for " f"model {rel_info.link_model}")
+                    rel_kwargs["secondary"] = local_table
+                rel_args: List[Any] = []
+                if rel_info.sa_relationship_args:
+                    rel_args.extend(rel_info.sa_relationship_args)
+                if rel_info.sa_relationship_kwargs:
+                    rel_kwargs.update(rel_info.sa_relationship_kwargs)
+                rel_value: RelationshipProperty = relationship(relationship_to, *rel_args, **rel_kwargs)
+                setattr(cls, rel_name, rel_value)
+            DeclarativeMeta.__init__(cls, classname, bases, dict_, **kw)
             if cls._bases.is_table:
                 cls.__sqlmodel_relationships__.update(cls._bases.sqlmodel_relationships)
         else:
