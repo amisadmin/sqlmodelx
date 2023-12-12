@@ -29,7 +29,7 @@ pip install sqlmodelx
 
 ```python
 from datetime import datetime
-from typing import List
+from typing import List,Optional
 
 from sqlmodel import Field, Relationship, Session, select
 
@@ -37,20 +37,20 @@ from sqlmodelx import SQLModel
 from sqlmodelx.main import SQLModelMetaclass
 
 class PkMixin(SQLModel):
-    id: int = Field(default = None, primary_key = True, nullable = False)
+    id: Optional[int] = Field(default = None, primary_key = True, nullable = False)
 
 class BaseUser(PkMixin):
     username: str = Field(default = '', nullable = False)
     password: str = Field(default = '', nullable = False)
     create_time: datetime = Field(default_factory = datetime.now, nullable = False)
-    group_id: int = Field(default = None, nullable = True, foreign_key = 'group.id')
+    group_id: Optional[int] = Field(default = None, nullable = True, foreign_key = 'group.id')
 
 class User(BaseUser, table = True):
     __tablename__ = 'user'
-    group: 'Group' = Relationship(back_populates = 'users')
+    group: Optional['Group'] = Relationship(back_populates = 'users')
 
 class Group(SQLModel, table = True):
-    id: int = Field(default = None, primary_key = True, nullable = False)
+    id: Optional[int] = Field(default = None, primary_key = True, nullable = False)
     name: str = Field(default = '', nullable = False)
     create_time: datetime = Field(default_factory = datetime.now, nullable = False)
     users: List[User] = Relationship(
@@ -128,10 +128,8 @@ def test_base_is_table_and_subclass_is_not_table(engine):
         assert user.id is not None
         assert user.group.id is not None
 
-        user_ex = NickNameUserSchema.from_orm(user, update = {'nickname': 'nickname'})
+        user_ex = NickNameUserSchema.from_orm(user)
         assert user_ex.id == user.id
-        assert user_ex.nickname == 'nickname'
-        assert user_ex.group is None
 
 ```
 
