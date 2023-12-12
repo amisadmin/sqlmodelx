@@ -27,6 +27,8 @@ class ChoiceType(types.TypeDecorator):
         return value
 
     def process_result_value(self, value, dialect):
-        if value:
+        if value is not None:
+            if issubclass(self.choices, int):
+                value = int(value)
             return self.choices(value)
         return value
