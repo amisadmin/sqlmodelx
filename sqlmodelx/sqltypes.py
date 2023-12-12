@@ -3,7 +3,7 @@ from typing import Type
 from sqlalchemy import types
 from sqlalchemy.engine import Dialect
 
-from sqlmodelx.enums import Choices
+from .enums import Choices
 
 
 class ChoiceType(types.TypeDecorator):
