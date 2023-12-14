@@ -99,6 +99,7 @@ if IS_PYDANTIC_V2:
                 model_fields_lookup: dict[str, FieldInfo] = {}
                 for x in base.__bases__[::-1]:
                     model_fields_lookup.update(getattr(x, "model_fields", {}))
+                model_fields_lookup.update(getattr(base, "model_fields", {}))
                 if ann_name in model_fields_lookup:
                     # The field was present on one of the (possibly multiple) base classes
                     # copy the field to make sure typevar substitutions don't cause issues with the base classes
