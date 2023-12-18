@@ -232,10 +232,10 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                 if hasattr(new_cls, k):
                     continue
                 # col = get_existed_instrumented_attribute(new_cls, k)
-                # col=get_existed_table_column(new_cls._sa_registry.metadata.tables, new_cls.__tablename__, k)
-                # if col is not None:
-                #     setattr(new_cls, k, col)
-                #     continue
+                col = get_existed_table_column(new_cls._sa_registry.metadata.tables, new_cls.__tablename__, k)
+                if col is not None:
+                    setattr(new_cls, k, col)
+                    continue
                 # End
                 col = get_column_from_field2(v)
                 setattr(new_cls, k, col)

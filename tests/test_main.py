@@ -2,6 +2,7 @@ from sqlalchemy import Column, ForeignKey, String, func
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import (
     InstrumentedAttribute,
+    aliased,
     column_property,
     declared_attr,
     deferred,
@@ -26,6 +27,33 @@ def test_class_and_metaclass(engine):
     assert issubclass(User, _SQLModel)
 
 
+def test_aliased(engine):
+    """Test base class and subclass are both ORM database tables"""
+    from .models import BaseUser, User
+
+    class User2(BaseUser, table=True):
+        """用户"""
+
+        pass
+
+    class User3(User, table=True):
+        """用户"""
+
+        pass
+
+    # Create the database tables
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
+
+    assert str(select(User.id)) == 'SELECT "user".id \nFROM "user"'
+    assert str(select(User2.id)) == 'SELECT "user".id \nFROM "user"'
+    assert str(select(User2.id).where(User.id == 1)) == 'SELECT "user".id \nFROM "user" \nWHERE "user".id = :id_1'
+    assert str(select(User3.id).where(User2.id == 1)) == 'SELECT "user".id \nFROM "user" \nWHERE "user".id = :id_1'
+    assert str(select(aliased(User, name="User1").id)) == 'SELECT "User1".id \nFROM "user" AS "User1"'
+    assert str(select(aliased(User2, name="User2").id)) == 'SELECT "User2".id \nFROM "user" AS "User2"'
+    assert str(select(aliased(User3, name="User3").id)) == 'SELECT "User3".id \nFROM "user" AS "User3"'
+
+
 def test_base_is_table_and_subclass_is_table(engine):
     """Test base class and subclass are both ORM database tables"""
     from .models import Group, User
@@ -38,6 +66,10 @@ def test_base_is_table_and_subclass_is_table(engine):
     class AvatarUser(NickNameUser, table=True):
         avatar: str = Field(default="")
 
+    NickNameUser.flow_sum = column_property(
+        select(func.count(User.id)).scalar_subquery(),
+        deferred=True,
+    )
     # Create the database tables
     SQLModel.metadata.drop_all(engine)
     SQLModel.metadata.create_all(engine)
@@ -106,9 +138,9 @@ def test_base_is_table_and_subclass_is_not_table(engine):
 
 
 def test_relationship_sa_relationship(engine):
-    from .models import BaseUser, Group
+    from .models import Group, User
 
-    class MyUser(BaseUser, table=True):
+    class MyUser(User, table=True):
         __tablename__ = "user"
         group: Group = Relationship()
 
