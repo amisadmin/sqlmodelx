@@ -236,8 +236,10 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                 if col is not None:
                     setattr(new_cls, k, col)
                     continue
-                # End
                 col = get_column_from_field2(v)
+                # Set the column name to the field name if it's not set
+                col.comment = col.comment or v.title or v.description
+                # End
                 setattr(new_cls, k, col)
             # Set a config flag to tell FastAPI that this should be read with a field
             # in orm_mode instead of preemptively converting it to a dict.
