@@ -20,10 +20,14 @@ from sqlmodel._compat import (
     get_config_value,
     get_model_fields,
     get_relationship_to,
-    get_type_from_field,
     is_table_model_class,
     set_config_value,
 )
+
+try:
+    from sqlmodel._compat import get_type_from_field
+except ImportError:
+    from sqlmodel._compat import get_sa_type_from_field as get_type_from_field
 from sqlmodel.main import (
     BaseConfig,
     FieldInfo,
@@ -70,7 +74,12 @@ class _SQLModelBasesInfo:
 
 
 if IS_PYDANTIC_V2:
-    from pydantic._internal._typing_extra import get_cls_type_hints_lenient
+    try:
+        from pydantic._internal._typing_extra import get_cls_type_hints_lenient
+    except ImportError:
+        from pydantic._internal._typing_extra import (
+            get_model_type_hints as get_cls_type_hints_lenient,
+        )
 
     def get_bases_instrumented_attribute_fields(bases):
         """Get the pydantic fields corresponding to the sqlalchemy fields in the bases base class"""
@@ -323,6 +332,7 @@ class SQLModel(_SQLModel, metaclass=SQLModelMetaclass):
     __table_args__ = {"extend_existing": True}
     if IS_PYDANTIC_V2:
         model_config = SQLModelConfig(
+            arbitrary_types_allowed=True,
             from_attributes=True,
             ignored_types=__sqlmodel_ignored_types__,
         )
