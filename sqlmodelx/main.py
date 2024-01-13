@@ -239,7 +239,7 @@ class SQLModelMetaclass(_SQLModelMetaclass):
                 col = get_column_from_field2(v)
                 # Set the column name to the field name if it's not set
                 field_info = v if IS_PYDANTIC_V2 else v.field_info
-                col.comment = getattr(col, "comment", field_info.title or field_info.description)
+                col.comment = getattr(col, "comment", None) or field_info.title or field_info.description
                 # End
                 setattr(new_cls, k, col)
             # Set a config flag to tell FastAPI that this should be read with a field
