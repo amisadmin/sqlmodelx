@@ -18,33 +18,26 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10" ,"3.11"]
+        python-version: ["3.7","3.8", "3.9", "3.10" ,"3.11"]
       fail-fast: false
 
-
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v3
+      - uses: actions/checkout@v4
+      - name: Set up PDM
+        uses: pdm-project/setup-pdm@v4
         with:
           python-version: ${{ matrix.python-version }}
-      - uses: actions/cache@v3
+          cache: true
+
+      - uses: actions/cache@v4
         id: cache
         with:
           path: ${{ env.pythonLocation }}
           key: ${{ runner.os }}-python-${{ env.pythonLocation }}-${{ hashFiles('pyproject.toml') }}-test
 
-      - name: Install pdm
+      - name: Install Test Dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: pip install --user pdm
-
-      - name: Install Dev Dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          python -m pip install -U setuptools
-          pdm install -G test -v
-          pdm run pip install -U setuptools
-          pdm info
+        run: pdm install -G test -v
 
       - name: Test
         run: pdm run pytest
